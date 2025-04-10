@@ -1,6 +1,6 @@
 #there are many steps that need to happen to evolve this further.
 #I need to add a section that pulls the allowed_specs list automatically with a SQL query connection
-#I need to spit out the output back into sqlite3
+#when there are multiple products how do I tell the computer which list to use against which row
 
 import pandas as pd
 import sqlite3
@@ -47,18 +47,19 @@ try:
     #df = pd.read_csv('S:\Supply_Chain\Analytics\Inventory Allocation Maximization\MVP Data\inventory.csv')
     df = pd.read_sql_query(mvp_inventory_query, sqlite3_connection)
 
-
+    #this will need to be updated to pull the data from the mvp_product table each product should get an allowed spec list
     allowed_specs = ['3002A', '3007DRYGUM', '3007FO', '3013A', '3025S', '3035A', '9999E', '9999A', '9999E']
 
     df['spec_listed'] = df['SPEC'].str.split('-')
 
-
+    #this function removes the bad specs basically
     def filter_specs(df, column_name, allowed_specs):
         df[column_name] = df[column_name].apply(lambda x: [val for val in x if val in allowed_specs])
         return df
 
     df = filter_specs(df, 'spec_listed', allowed_specs)
 
+    #this recombines the spec list into the same format as they started in (SPEC-SPEC-SPEC-etc)
     df['CLEANED_SPEC'] = df['spec_listed'].apply(lambda x: '-'.join(map(str,x)))
 
     df = df.drop('spec_listed', axis=1)
