@@ -23,7 +23,7 @@ def drop_table(table_name):
 def create_mvp_inventory(table_name):
     table = table_name
     query = f'''create table {table}(
-     AGE REAL,
+    AGE REAL,
     TOTAL_WEIGHT REAL,
     TOTAL_PALLETS REAL,
     ITEM_NUMBER TEXT,
