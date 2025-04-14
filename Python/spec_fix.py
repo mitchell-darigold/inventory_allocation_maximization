@@ -59,6 +59,8 @@ try:
 
     df = filter_specs(df, 'spec_listed', allowed_specs)
 
+    print(df.head(50))
+
     #this recombines the spec list into the same format as they started in (SPEC-SPEC-SPEC-etc)
     df['CLEANED_SPEC'] = df['spec_listed'].apply(lambda x: '-'.join(map(str,x)))
 
