@@ -3,7 +3,7 @@ drop table if exists mvp_distinct_inventory_products;
 create table mvp_distinct_inventory_products as
     select distinct
     p.item_number || "_" || p.production_plant || "_" ||  p.grade || "_" ||  p.cleaned_spec || "_" ||  p.age_joiner || "D" as MODEL_NAME
-    ,p.age
+    ,p.age_joiner as age
     ,p.production_plant
     ,p.grade
     ,p.cleaned_spec

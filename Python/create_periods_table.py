@@ -5,6 +5,7 @@
 import pandas as pd
 import sqlite3
 import datetime
+from datetime import date, timedelta
 
 ##Choose the date to start the period table from.  This MUST be the date the data was pulled from the system.
 start_date = datetime.date(2025, 4, 8)
@@ -29,7 +30,7 @@ def drop_table(table_name):
 def create_mvp_periods(table_name):
     table = table_name
     query = f'''create table {table}(
-    PERIOD_NUMBER TEXT,
+    PERIOD_NUMBER REAL,
     DATE_FORMATTED TEXT
     );'''
     return query
@@ -45,7 +46,8 @@ try:
 
     ##i need to add something that will add the 120 rows of days starting with a specific value pulled in my sql query
     
-    num_rows = 120
+    num_rows = 121
+    start_date = start_date - timedelta(days=1)
     date_list = [start_date + datetime.timedelta(days=i) for i in range(num_rows)]
     number_list = list(range(1, num_rows + 1))
 

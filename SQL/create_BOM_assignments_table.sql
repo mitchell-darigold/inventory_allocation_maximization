@@ -1,3 +1,4 @@
+drop table if exists mvp_distinct_whs_products;
 --i need a table thats the same as mvp_distinct_inventory_products (like I made in the create_products_tables) but with a whs_code column.  I am creating that below
 create table mvp_distinct_whs_products as
     select distinct
@@ -25,6 +26,8 @@ create table mvp_distinct_whs_products as
     ) p
     ;
 
+drop table if exists mvp_bom_assigments;
+
 create table mvp_bom_assigments as
     select
     '(ALL_Periods)' as Period
@@ -39,7 +42,7 @@ create table mvp_bom_assigments as
     from (
         select mdip.model_name
         ,mdip.whs_code
-        ,lag(mdip.model_name || ' aging',-1,'0') over (partition by mdip.item_number || "_" || mdip.production_plant || "_" ||  mdip.grade || "_" ||  mdip.cleaned_spec order by mdip.item_number || "_" || mdip.production_plant || "_" ||  mdip.grade || "_" ||  mdip.cleaned_spec, cast(mdip.age as int) desc) as BOM
+        ,lag(mdip.model_name || ' aging',-1,'0') over (partition by mdip.item_number || "_" || mdip.production_plant || "_" ||  mdip.grade || "_" ||  mdip.cleaned_spec, mdip.whs_code order by mdip.item_number || "_" || mdip.production_plant || "_" ||  mdip.grade || "_" ||  mdip.cleaned_spec, cast(mdip.age as int) desc) as BOM
         from mvp_distinct_whs_products mdip
         order by mdip.item_number || "_" || mdip.production_plant || "_" ||  mdip.grade || "_" ||  mdip.cleaned_spec, cast(mdip.age as int) desc
     ) z

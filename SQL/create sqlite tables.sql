@@ -60,6 +60,7 @@ create table mvp_orders(
 
 .import 'S:\Supply_Chain\Analytics\Inventory Allocation Maximization\MVP Data\no headers\orders.csv' mvp_orders
 
+drop table if exists mvp_orders_formatted;
 
 create table mvp_orders_formatted as
     select
@@ -100,8 +101,13 @@ create table mvp_orders_formatted as
 
 --the date MUST be the date the data was pulled.  The date the data was pulled has a unique inventory profile at our warehouses.  We must match the orders starting from that day forward to the inventory available that day forward.
 --I also need to cut off the orders that are older than 120 days from the day the data was pulled
-delete from mvp_orders_formatted where date(ship_date_formatted) < date('now');
-delete from mvp_orders_formatted where date(ship_date_formatted) > date('now', '+120 days');
+
+--leaving these two as examples for using the current date time (but remember, I need to use the date the data was actually pulled from our system)
+--delete from mvp_orders_formatted where date(ship_date_formatted) < date('now');
+--delete from mvp_orders_formatted where date(ship_date_formatted) > date('now', '+120 days');
+
+delete from mvp_orders_formatted where date(ship_date_formatted) < date('2025-04-08');
+delete from mvp_orders_formatted where date(ship_date_formatted) > date('2025-04-08', '+120 days');
 
 drop table if exists mvp_orders;
 

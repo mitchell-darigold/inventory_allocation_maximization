@@ -42,25 +42,27 @@ and x.Name <> 0
 
 -----------------
 --i spent all the time writing the above query but I think its cleaner to follow Alec's advice and just not include the end product.  That will be on the BOM assignment anyway
+create table mvp_bom as 
+    select x.model_product_name || ' aging' as Name
+    ,x.model_product_name as Product
+    ,x.Type
+    ,x.Quantity
+    ,'' as Notes
+    --the subselect from just allows me to do the lag an filter out an undeeded row
+    from (
+        select mdip.model_name as model_product_name
+        ,cast(mdip.age as int) as age
+        ,'Component' as Type
+        ,'1' as Quantity
+        --this lag function just allows me to find the row where the product is oldest (120days old), I dont need that row in the BOM table.  Product at 120 days old will not get older so we dont need a bom to age it
+        ,lag('1',1,0) over (partition by mdip.item_number || "_" || mdip.production_plant || "_" ||  mdip.grade || "_" ||  mdip.cleaned_spec order by cast(mdip.age as int) desc) as remover
+        from mvp_distinct_inventory_products mdip
+        order by mdip.item_number || "_" || mdip.production_plant || "_" ||  mdip.grade || "_" ||  mdip.cleaned_spec, cast(mdip.age as int) desc
+    ) x
+    where x.remover <> 0
+    ;
+
 .mode csv
 .headers on
 .once 'S:\Supply_Chain\Analytics\Inventory Allocation Maximization\MVP Data\input tables\BOMs.csv'
-
-select x.model_product_name || ' aging' as Name
-,x.model_product_name as Product
-,x.Type
-,x.Quantity
-,'' as Notes
---the subselect from just allows me to do the lag an filter out an undeeded row
-from (
-    select mdip.model_name as model_product_name
-    ,cast(mdip.age as int) as age
-    ,'Component' as Type
-    ,'1' as Quantity
-    --this lag function just allows me to find the row where the product is oldest (120days old), I dont need that row in the BOM table.  Product at 120 days old will not get older so we dont need a bom to age it
-    ,lag('1',1,0) over (partition by mdip.item_number || "_" || mdip.production_plant || "_" ||  mdip.grade || "_" ||  mdip.cleaned_spec order by cast(mdip.age as int) desc) as remover
-    from mvp_distinct_inventory_products mdip
-    order by mdip.item_number || "_" || mdip.production_plant || "_" ||  mdip.grade || "_" ||  mdip.cleaned_spec, cast(mdip.age as int) desc
-) x
-where x.remover <> 0
-;
+select * from mvp_bom
