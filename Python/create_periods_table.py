@@ -30,7 +30,7 @@ def drop_table(table_name):
 def create_mvp_periods(table_name):
     table = table_name
     query = f'''create table {table}(
-    PERIOD_NUMBER REAL,
+    PERIOD_NUMBER INTEGER,
     DATE_FORMATTED TEXT
     );'''
     return query
@@ -49,7 +49,7 @@ try:
     num_rows = 121
     start_date = start_date - timedelta(days=1)
     date_list = [start_date + datetime.timedelta(days=i) for i in range(num_rows)]
-    number_list = list(range(1, num_rows + 1))
+    number_list = list(range(0, num_rows))
 
     df = pd.DataFrame({'DATE_FORMATTED': date_list, 'PERIOD_NUMBER': number_list})
 
