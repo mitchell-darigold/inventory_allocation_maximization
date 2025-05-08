@@ -6,6 +6,8 @@ select mp.period_number as Period
 ,mo.order_number as Customer
 ,g.group_name as Product
 ,'Set' as CollectionBasisProductName
+,'0' as 'Minimum Quantity'
+,'10000' as 'Unit Penalty Cost'
 --the 'set' should, i think, make these groups use the All not Each setting.  Meaning the demand will fill with any one product in the group not try to fill all the products in the group.
 ,mo.ordered_pallets as Quantity
 

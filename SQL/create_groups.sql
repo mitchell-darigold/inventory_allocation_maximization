@@ -54,6 +54,16 @@ and (g.grade = dp.grade or g.grade = dp.grade+1)
 and (g.approved_plant_1 = dp.production_plant or g.approved_plant_2 = dp.production_plant or g.approved_plant_3 = dp.production_plant)
 --this part is tricky and requires manual intervention.  I wont know how many specs will exist in the mvp_distinct_inventory_products table unless I look manually
 and (g.spec = dp.spec1 or g.spec = dp.spec2 or g.spec = dp.spec3 or g.spec = dp.spec4 or g.spec = dp.spec5 or g.spec = dp.spec6 or g.spec = dp.spec7)
+
+--i need to include the period group for the production constraint trickery
+
+union all
+
+select
+'REAL_PERIODS'  as 'Group'
+,period_number as 'Member'
+from mvp_periods
+where period_number <> 0
 ;
 
 .mode csv
@@ -112,5 +122,15 @@ and (g.grade = dp.grade or g.grade = dp.grade+1)
 and (g.approved_plant_1 = dp.production_plant or g.approved_plant_2 = dp.production_plant or g.approved_plant_3 = dp.production_plant)
 --this part is tricky and requires manual intervention.  I wont know how many specs will exist in the mvp_distinct_inventory_products table unless I look manually
 and (g.spec = dp.spec1 or g.spec = dp.spec2 or g.spec = dp.spec3 or g.spec = dp.spec4 or g.spec = dp.spec5 or g.spec = dp.spec6 or g.spec = dp.spec7)
+
+--i need to include the period group for the production constraint trickery
+
+union all
+
+select
+'REAL_PERIODS' as 'Group Name'
+,'Periods' as 'Group Type'
+from mvp_periods
+
 
 ;

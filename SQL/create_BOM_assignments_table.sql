@@ -30,9 +30,9 @@ drop table if exists mvp_bom_assigments;
 
 create table mvp_bom_assigments as
     select
-    '(ALL_Periods)' as Period
+    'REAL_PERIODS' as Period
     ,z.whs_code as Site
-    ,z.model_name as Product
+    ,z.product as Product
     ,z.BOM
     ,'' as 'Assignment Policy'
     ,'' as 'Policy Parameter'
@@ -40,14 +40,16 @@ create table mvp_bom_assigments as
     ,'include' as 'Status'
     ,'' as Notes
     from (
-        select mdip.model_name
-        ,mdip.whs_code
-        ,lag(mdip.model_name || ' aging',-1,'0') over (partition by mdip.item_number || "_" || mdip.production_plant || "_" ||  mdip.grade || "_" ||  mdip.cleaned_spec, mdip.whs_code order by mdip.item_number || "_" || mdip.production_plant || "_" ||  mdip.grade || "_" ||  mdip.cleaned_spec, cast(mdip.age as int) desc) as BOM
-        from mvp_distinct_whs_products mdip
-        order by mdip.item_number || "_" || mdip.production_plant || "_" ||  mdip.grade || "_" ||  mdip.cleaned_spec, cast(mdip.age as int) desc
+        select
+        m.item_number || "_" || m.production_plant || "_" ||  m.grade || "_" ||  m.cleaned_spec || "_" ||  m.age || "D" as product
+        ,"BOM_" || m.model_name as BOM
+        ,m.whs_code
+        from (
+            select *
+            ,cast(age as int) - 1 as age_minus_one
+            from mvp_distinct_whs_products
+        ) m
     ) z
-    where BOM <> 0
-    and BOM <> '0'
     ;
 
 .mode csv

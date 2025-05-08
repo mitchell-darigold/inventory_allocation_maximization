@@ -29,8 +29,8 @@ create table mvp_distinct_inventory_products as
 .headers on
 .once 'S:\Supply_Chain\Analytics\Inventory Allocation Maximization\MVP Data\input tables\Products.csv'
 
-select distinct
-p.item_number || "_" || p.production_plant || "_" ||  p.grade || "_" ||  p.cleaned_spec || "_" ||  p.age_joiner || "D" as Name
+select 
+a.model_name as Name
 ,'' as 'Unit Value'
 ,'' as 'Unit Price'
 ,'' as 'Unit Weight'
@@ -54,17 +54,18 @@ p.item_number || "_" || p.production_plant || "_" ||  p.grade || "_" ||  p.clean
 ,'' as 'Maximum Risk'
 
 from (
-    --this section joins the raw inventory data with a joiner table to produce 1 row for every possible age for each sku_prod facility_grade_spec combination at or above the current age of the product in inventory
-    --max age for a product is 120 as defined in the mvp_age_joiner table
-    select mi.*
-    ,aj.age as age_joiner
+    select distinct model_name
+    from mvp_distinct_inventory_products
 
-    from mvp_inventory mi
+    union
 
-    left join mvp_age_joiner aj
-    on mi.joiner=aj.joiner
+    select distinct
+    m.item_number || "_" || m.production_plant || "_" ||  m.grade || "_" ||  m.cleaned_spec || "_" ||  m.age_minus_one || 'D'
 
-    where 1=1
-    and aj.age >= mi.age
-) p
+    from (
+        select *
+        ,cast(age as int) - 1 as age_minus_one
+        from mvp_distinct_whs_products
+    ) m
+) a
 ;
