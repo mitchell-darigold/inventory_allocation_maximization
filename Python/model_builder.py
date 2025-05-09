@@ -7,16 +7,19 @@ from dateutil.parser import parse
 
 #Ask user for date to use with the loading.  It needs to be the date the data was pulled on
 
-while True:
-    date_string = input("Enter a date in YYYY-MM-DD format: ")
-    try:
-        date_object = datetime.strptime(date_string, "%Y-%m-%d").date()
-        break
-    except ValueError:
-       print("Invalid date format. Please use YYYY-MM-DD.")
-print("You entered:", date_object)
+#while True:
+#    date_string = input("Enter the date you pulled the data on in YYYY-MM-DD format: ")
+#    try:
+#        date_object = datetime.strptime(date_string, "%Y-%m-%d").date()
+#        break
+#    except ValueError:
+#       print("Invalid date format. Please use YYYY-MM-DD.")
+#print("You entered:", date_object)
 
-#date_string = '2025-05-01'
+#start_date = parse(date_string)
+
+#these two lines are just so I dont have to enter a date everytime I run a test.  They should be commented out once the project is complete
+date_string = '2025-05-07'
 start_date = parse(date_string)
 
 #Make a Sqlite connection
@@ -476,31 +479,32 @@ from (
         ,grade
         ,spec
         from iam_orders
+        --only where spproving plant 1 is not null------------------------------------
+        where approved_plant_1 <> 'ANY'
     ) mo
 ) g
 
 left join (
---    select model_name
---    ,age
---    ,production_plant
---    ,cast(grade as INT) as grade
---    ,cleaned_spec
---    ,item_number
---    ,spec1
---    ,spec2
---    ,spec3
---    ,spec4
---    ,spec5
---    ,spec6
---    ,spec7
-    select *
+    select model_name
+    ,age
+    ,production_plant
+    ,cast(grade as INT) as grade
+    ,cleaned_spec
+    ,item_number
+    ,spec1
+    ,spec2
+    ,spec3
+    ,spec4
+    ,spec5
+    ,spec6
+    ,spec7
     from iam_distinct_inventory_products
  ) dp
 on g.item_number = dp.item_number
 and (g.grade = dp.grade or g.grade = dp.grade+1)
 and (g.approved_plant_1 = dp.production_plant or g.approved_plant_2 = dp.production_plant or g.approved_plant_3 = dp.production_plant)
---this part is tricky and requires manual intervention.  I wont know how many specs will exist in the iam_distinct_inventory_products table unless I look manually
-and (g.spec = dp.spec1 or g.spec = dp.spec2 or g.spec = dp.spec3 or g.spec = dp.spec4 or g.spec = dp.spec5 or g.spec = dp.spec6 or g.spec = dp.spec7 or g.spec = dp.spec8  or g.spec = dp.spec9)
+--this part is tricky and requires manual intervention.  I wont know how many specs will exist in the mvp_distinct_inventory_products table unless I look manually
+and (g.spec = dp.spec1 or g.spec = dp.spec2 or g.spec = dp.spec3 or g.spec = dp.spec4 or g.spec = dp.spec5 or g.spec = dp.spec6 or g.spec = dp.spec7)
 
 --i need to include the period group for the production constraint trickery
 
@@ -509,8 +513,64 @@ union all
 select
 'REAL_PERIODS'  as 'Group'
 ,period_number as 'Member'
-from iam_periods
+from mvp_periods
 where period_number <> 0
+
+union all
+
+select distinct g.group_name as 'Group'
+,dp.model_name as 'Member'
+
+from (
+    --the stuff in this from statement creates the group.  We pull the groups necessary from the orders data.  Then we will fill the groups with inventory data above.  AKA the orders tell us what groups we need and the inventory is what we can actually put into the groups
+    --keeping the subselect seperate from the joins that happen above for clarity
+    select mo.item_number || "_" || mo.approved_plant_concat || "_" || mo.grade || "_" || mo.spec as group_name
+    ,mo.item_number
+    ,mo.approved_plant_1
+    ,mo.approved_plant_2
+    ,mo.approved_plant_3
+    ,mo.grade
+    ,mo.spec as spec
+
+    from (
+        --just doing the case when in a subselect for clarity
+        select item_number
+        ,approved_plant_1
+        ,approved_plant_2
+        ,approved_plant_3
+        ,case when approved_plant_2 = '' then approved_plant_1
+            when approved_plant_3 = '' then approved_plant_1 || "-" || approved_plant_2
+            else approved_plant_1
+            end as approved_plant_concat
+        ,grade
+        ,spec
+        from iam_orders
+        --only where spproving plant 1 is null-----------------------
+        where approved_plant_1 = 'ANY'
+    ) mo
+) g
+
+left join (
+    select model_name
+    ,age
+    ,production_plant
+    ,cast(grade as INT) as grade
+    ,cleaned_spec
+    ,item_number
+    ,spec1
+    ,spec2
+    ,spec3
+    ,spec4
+    ,spec5
+    ,spec6
+    ,spec7
+    from iam_distinct_inventory_products
+ ) dp
+on g.item_number = dp.item_number
+and (g.grade = dp.grade or g.grade = dp.grade+1)
+--and (g.approved_plant_1 = dp.production_plant or g.approved_plant_2 = dp.production_plant or g.approved_plant_3 = dp.production_plant)
+--this part is tricky and requires manual intervention.  I wont know how many specs will exist in the mvp_distinct_inventory_products table unless I look manually
+and (g.spec = dp.spec1 or g.spec = dp.spec2 or g.spec = dp.spec3 or g.spec = dp.spec4 or g.spec = dp.spec5 or g.spec = dp.spec6 or g.spec = dp.spec7)
 ;'''
 
 
@@ -570,10 +630,188 @@ and (g.spec = dp.spec1 or g.spec = dp.spec2 or g.spec = dp.spec3 or g.spec = dp.
 
 union all
 
-select
+select distinct
 'REAL_PERIODS' as 'Group Name'
 ,'Periods' as 'Group Type'
 from iam_periods
+;'''
+
+coupa_customer_demand = '''select mp.period_number as Period
+,mo.order_number as Customer
+,g.group_name as Product
+,'Set' as CollectionBasisProductName
+,'0' as 'Minimum Quantity'
+,'10000' as 'Unit Penalty Cost'
+--the 'set' should, i think, make these groups use the All not Each setting.  Meaning the demand will fill with any one product in the group not try to fill all the products in the group.
+,mo.ordered_pallets as Quantity
+
+from iam_orders mo
+
+left join iam_periods mp
+on mo.ship_date=mp.date_formatted
+
+left join (
+    --the stuff in this statement creates the group.
+    --keeping the subselect seperate from the joins that happen above for clarity
+    select mo.item_number || "_" || mo.approved_plant_concat || "_" || mo.grade || "_" || mo.spec as group_name
+    ,mo.item_number
+    ,mo.approved_plant_1
+    ,mo.approved_plant_2
+    ,mo.approved_plant_3
+    ,mo.grade
+    ,mo.spec as spec
+    ,mo.order_number
+    from (
+        --just doing the case when in a subselect for clarity
+        select item_number
+        ,approved_plant_1
+        ,approved_plant_2
+        ,approved_plant_3
+        ,case when approved_plant_2 = '' then approved_plant_1
+            when approved_plant_3 = '' then approved_plant_1 || "-" || approved_plant_2
+            else approved_plant_1
+            end as approved_plant_concat
+        ,grade
+        ,spec
+        ,order_number
+        from iam_orders
+    ) mo
+) g
+on mo.order_number=g.order_number
+and mo.item_number=g.item_number
+;'''
+
+coupa_customers = '''select distinct order_number as Name from iam_orders;'''
+
+coupa_periods = '''select period_number as Name, DATE_FORMATTED as 'Start Date', '' as Notes from iam_periods;'''
+
+coupa_production_constraints = '''select
+'0' as 'Period'
+,'' as 'CollectionBasisPeriodName'
+,m.whs_code as 'Site'
+,'' as 'CollectionBasisSiteName'
+,m.product_model_name as 'Product'
+,'' as 'CollectionBasisProductName'
+,'' as 'BOM'
+,'' as 'CollectionBasisBOMName'
+,'Fixed' as 'Constraint Type'
+,case when m.total_pallets is null then 0 else m.total_pallets end as 'Constraint Value'
+,'' as 'Constraint Period'
+,'Include' as 'Status'
+,'' as 'Notes'
+
+--this subselect just seperates creating all the column names for the model and the actual SQL code below
+from (
+    select
+    p.product_model_name
+    ,x.total_pallets
+    --after troubleshooting using the initial inventory column in the inventory policies is not working as expected.  I had to make production constraints to produce the initial inventory for the model to "see" it.  Im leaving this here for posterity
+    ,p.whs_code
+    ,p.unit_disposal_cost
+
+    from (
+        select
+        n.product_model_name
+        ,n.whs_code
+        ,row_number() over (partition by n.product_model_name_no_age, n.whs_code order by n.age_joiner desc) * 50 unit_disposal_cost
+        from (
+        --this select creates one row for every product for every whs
+            select
+            k.product_model_name
+            ,k.product_model_name_no_age
+            ,k.age_joiner
+            ----,sj.whs_code
+            ,k.whs_code
+            from (
+                --this select grabs the distinct list of products with some dimensions to allow for the row_num creation later
+                select distinct
+                mi.item_number || "_" || mi.production_plant || "_" ||  mi.grade || "_" ||  mi.cleaned_spec || "_" ||  aj.age || "D" as product_model_name
+                ,mi.item_number || "_" || mi.production_plant || "_" ||  mi.grade || "_" ||  mi.cleaned_spec as product_model_name_no_age
+                ,cast(cast(aj.age as real) as integer) as age_joiner
+                --,'1' as site_joiner
+                ,mi.whs_code
+
+                from iam_inventory mi
+
+                left join iam_age_joiner aj
+                on mi.joiner=aj.joiner
+
+                where 1=1
+                and aj.age >= mi.age
+            ) k
+                --this left join allows me to duplicate the distinct list of products as many times as there are unique whs in the mvp_inventory table
+                ----left join (
+                ----    select distinct whs_code
+                ----    ,'1' as site_joiner
+                ----    from iam_inventory
+                ----) sj
+                ---on k.site_joiner=sj.site_joiner
+        ) n
+    ) p
+    
+    left join (
+        --this left join grabs data out of the mvp_inventory table to join it to the list of distinct products.  Whereever there is a product actually at a warehouse it will get attached to the version in the distinct list of products along with the total pallets and whs code
+        select z.item_number || "_" || z.production_plant || "_" ||  z.grade || "_" ||  z.cleaned_spec || "_" ||  z.age || "D" as product_model_name
+        ,z.whs_code
+        ,sum(z.total_pallets) as total_pallets
+        from (
+            select
+            mi.item_number
+            ,mi.production_plant
+            ,mi.grade
+            ,mi.cleaned_spec 
+            ,cast(cast(mi.age as real) as integer) as age
+            ,mi.total_pallets
+            ,mi.whs_code
+            --,cast(cast(mi.age as real) as integer)
+            from iam_inventory mi
+        ) z
+        group by
+        z.item_number || "_" || z.production_plant || "_" ||  z.grade || "_" ||  z.cleaned_spec || "_" ||  z.age || "D"
+        ,z.whs_code
+    ) x
+    on p.product_model_name=x.product_model_name
+    and p.whs_code = x.whs_code
+
+) m
+;'''
+
+coupa_customer_sourcing = '''select
+'(ALL_Customers)' as Customer
+,n.product_model_name as Product
+,n.whs_code as Source
+,row_number() over (partition by n.product_model_name_no_age, n.whs_code order by n.age_joiner desc) * 50 'Unit Sourcing Cost'
+from (
+--this select creates one row for every product for every whs
+    select
+    k.product_model_name
+    ,k.product_model_name_no_age
+    ,k.age_joiner
+    ,sj.whs_code
+    from (
+        --this select grabs the distinct list of products with some dimensions to allow for the row_num creation later
+        select distinct
+        mi.item_number || "_" || mi.production_plant || "_" ||  mi.grade || "_" ||  mi.cleaned_spec || "_" ||  aj.age || "D" as product_model_name
+        ,mi.item_number || "_" || mi.production_plant || "_" ||  mi.grade || "_" ||  mi.cleaned_spec as product_model_name_no_age
+        ,cast(cast(aj.age as real) as integer) as age_joiner
+        ,'1' as site_joiner
+
+        from mvp_inventory mi
+
+        left join mvp_age_joiner aj
+        on mi.joiner=aj.joiner
+
+        where 1=1
+        and aj.age >= mi.age
+    ) k
+        --this left join allows me to duplicate the distinct list of products as many times as there are unique whs in the mvp_inventory table
+        left join (
+            select distinct whs_code
+            ,'1' as site_joiner
+            from mvp_inventory
+        ) sj
+        on k.site_joiner=sj.site_joiner
+) n
 ;'''
 
 ###############################################Import data section###################################################
@@ -593,6 +831,19 @@ iam_item_df['Spec'] = iam_item_df['Spec'].fillna('9999A')
 iam_orders_df = pd.read_csv(iam_orders_path)
 #add an additional column formatting the date correctly
 iam_orders_df['SHIP_DATE_FORMATTED'] = iam_orders_df['Ship Date'].str.split(' ').str[0]
+#clean up some of the columns
+iam_orders_df['Spec'] = iam_orders_df['Spec'].fillna('9999A')
+iam_orders_df['Grade'] = iam_orders_df['Grade'].fillna('101')
+iam_orders_df = iam_orders_df.dropna(subset=['Order#'])
+iam_orders_df = iam_orders_df.dropna(subset=['Sum of Ordered Pallets'])
+iam_orders_df = iam_orders_df.dropna(subset=['Item#'])
+#this may need to be adjusted in the future.  I cant have null values in the approving plant column.  A null value in approving plan 1 just means any plant can fill the order.  So I put 'Any' in there
+iam_orders_df = iam_orders_df.fillna('ANY')
+#convert the grade from a float to an int
+iam_orders_df['Grade'] = iam_orders_df['Grade'].astype(int)
+#round the pallets to a single decimal places
+iam_orders_df['Sum of Ordered Pallets'] = iam_orders_df['Sum of Ordered Pallets'].round(1)
+
 #load an age joiner table
 iam_age_joiner_df = pd.DataFrame({'AGE': range(1, 121), 'JOINER':1})
 
@@ -608,6 +859,10 @@ spec_df = iam_item_df.groupby('ITEM_NUMBER')['SPEC'].apply(list).reset_index()
 spec_df = spec_df.rename(columns={'SPEC': 'ALLOWED_SPEC'})
 #convert the spec column from the inventory df into a column of lists
 iam_inventory_df['SPEC_LISTED'] = iam_inventory_df['SPEC'].str.split('-')
+#remove duplicate items from the list in hte SPEC_LISTED
+def remove_duplicates(input_list):
+    return list(dict.fromkeys(input_list))
+iam_inventory_df['SPEC_LISTED'] = iam_inventory_df['SPEC_LISTED'].apply(remove_duplicates)
 #left join the allowed specs onto the inventory df
 iam_inventory_spec_fix_df = pd.merge(iam_inventory_df, spec_df, on='ITEM_NUMBER', how='left')
 #create a function to remove specs that dont show up in the allowed spec lists
@@ -655,7 +910,6 @@ try:
 
     num_rows = 121
     start_date = start_date - timedelta(days=1)
-    #date_list = [start_date + datetime.timedelta(days=i) for i in range(num_rows)]
     date_list = [start_date + timedelta(days=i) for i in range(num_rows)]
     number_list = list(range(0, num_rows))
     df = pd.DataFrame({'DATE_FORMATTED': date_list, 'PERIOD_NUMBER': number_list})
@@ -699,17 +953,11 @@ try:
 except Exception as ex:
     print(ex)
 
-#Commit changes
+###################################################Commit changes#######################################
 
 sqlite3_connection.commit()
 
-
-#Create meta tables
-
-
-
-
-#Output coupa model tables
+#################################################Output coupa model tables################################
 products_table_df = pd.read_sql_query(coupa_products, sqlite3_connection)
 boms_table_df = pd.read_sql_query(coupa_boms, sqlite3_connection)
 bom_assignment_table_df = pd.read_sql_query(coupa_bom_assignments, sqlite3_connection)
@@ -718,27 +966,34 @@ transportation_policies_table_df = pd.read_sql_query(coupa_transportation_polici
 inventory_policies_table_df = pd.read_sql_query(coupa_inventory_policies, sqlite3_connection)
 sites_table_df = pd.read_sql_query(coupa_sites, sqlite3_connection)
 customers_table_df = pd.read_sql_query(coupa_customers, sqlite3_connection)
-group_members_table_df = pd.read_sql_query(coupa_group_members, sqlite3_connection)
 group_table_df = pd.read_sql_query(coupa_groups, sqlite3_connection)
+group_members_table_df = pd.read_sql_query(coupa_group_members, sqlite3_connection)
+customer_demand_table_df = pd.read_sql_query(coupa_customer_demand, sqlite3_connection)
+customer_table_df = pd.read_sql_query(coupa_customers, sqlite3_connection)
+periods_table_df = pd.read_sql_query(coupa_periods, sqlite3_connection)
+production_constraints_table_df = pd.read_sql_query(coupa_production_constraints, sqlite3_connection)
+customer_sourcing_table_df = pd.read_sql_query(coupa_customer_sourcing, sqlite3_connection)
 
 
+#################################Create a single excel file with each relevant sheet##################################
 
-
-
-#Create a single excel file with each relevant sheet
-#I need to come back through and update the sheet names correctly
 with pd.ExcelWriter('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\model.xlsx') as writer:
     products_table_df.to_excel(writer, sheet_name='Products', index=False)
     boms_table_df.to_excel(writer, sheet_name='BOM', index=False)
-    bom_assignment_table_df.to_excel(writer, sheet_name='BOM_Assignments', index=False)
-    production_policies_table_df.to_excel(writer, sheet_name='Production_Policies', index=False)
-    transportation_policies_table_df.to_excel(writer, sheet_name='Transportation_Policies', index=False)
-    inventory_policies_table_df.to_excel(writer, sheet_name='Inventory_Policies', index=False)
+    bom_assignment_table_df.to_excel(writer, sheet_name='BomAssignments', index=False)
+    production_policies_table_df.to_excel(writer, sheet_name='ProductionPolicies', index=False)
+    transportation_policies_table_df.to_excel(writer, sheet_name='TG_Policies', index=False)
+    inventory_policies_table_df.to_excel(writer, sheet_name='InventoryPolicies', index=False)
     sites_table_df.to_excel(writer, sheet_name='Sites', index=False)
     customers_table_df.to_excel(writer, sheet_name='Customers', index=False)
-    group_members_table_df.to_excel(writer, sheet_name='Group Members', index=False)
     group_table_df.to_excel(writer, sheet_name='Groups', index=False)
+    group_members_table_df.to_excel(writer, sheet_name='GroupMembers', index=False)
+    customer_demand_table_df.to_excel(writer, sheet_name='CustomerDemand', index=False)
+    customer_table_df.to_excel(writer, sheet_name='Customers', index=False)
+    periods_table_df.to_excel(writer, sheet_name='Periods', index=False)
+    production_constraints_table_df.to_excel(writer, sheet_name='AG_ProductionConstraints', index=False)
+    customer_sourcing_table_df.to_excel(writer, sheet_name='CS_Policies', index=False)
 
-#Close the sqlite connection
+###############################################Close the sqlite connection##############################################
 sqlite3_connection.close()
 print("Connection to power_bi_data is closed")
