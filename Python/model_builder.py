@@ -446,13 +446,104 @@ from (
 ) m
 ;'''
 
-coupa_sites = '''select distinct whs_code as Name from iam_inventory;'''
+coupa_sites = '''select distinct whs_code as Name 
+,'' as 'Type'
+,'' as 'Address'
+,'' as 'City'
+,'' as 'State'
+,'' as 'Country'
+,'' as 'Postal Code'
+,'' as 'Latitude'
+,'' as 'Longitude'
+,'' as 'Time Zone'
+,'' as 'Weekly Schedule'
+,'' as 'Annual Schedule'
+,'' as 'Tax Region'
+,'' as 'Risk Profile'
+,'' as 'Organization'
+,'' as 'Site Variable Cost'
+,'' as 'Site Variable Cost Basis'
+,'' as 'Fixed Operating Cost'
+,'' as 'Fixed Operating Space Expansion Cost'
+,'' as 'Initial Floor Space'
+,'' as 'Min Floor Expansion'
+,'' as 'Max Floor Expansion'
+,'' as 'Fixed Startup Cost'
+,'' as 'Fixed Closing Cost'
+,'' as 'Expansion Only'
+,'' as 'Single Site Sourcing'
+,'' as 'Order Queue Basis'
+,'' as 'Back Order Queue Basis'
+,'' as 'Inbound Shipment Queue Basis'
+,'' as 'Outbound Shipment Queue Basis'
+,'' as 'Order Review Policy'
+,'' as 'Order Review Period'
+,'' as 'Asset Search Distance'
+,'' as 'Fixed Service Time'
+,'' as 'Fixed Service Time Load'
+,'' as 'Fixed Service Time Unload'
+,'' as 'Variable Service Time Load'
+,'' as 'Variable Service Time Unload'
+,'' as 'Variable Service Time Basis'
+,'' as 'Capital Investment Cost'
+,'' as 'Book Value'
+,'' as 'Depreciation Schedule'
+,'' as 'Site Variable CO2'
+,'' as 'Site Variable CO2 Basis'
+,'' as 'Fixed CO2'
+,'' as 'Fixed CO2 Space Expansion Rate'
+,'' as 'Minimum Capacity'
+,'' as 'Maximum Capacity'
+,'' as 'Capacity/Fixed Cost Period'
+,'' as 'Number of Dock Doors'
+,'' as 'Dock Door Reset Time'
+,'' as 'Mandatory Routing Sequence'
+,'Include' as 'Status'
+,'' as 'Notes'
+,'' as 'Custom 1'
+,'' as 'Custom 2'
+,'' as 'Unit Production Cost'
+,'' as 'Drone Eligible'
+from iam_inventory;'''
 
-coupa_customers = '''select distinct order_number as Name from iam_orders;'''
+coupa_customers = '''select distinct order_number as Name 
+,'' as 'Address'
+,'' as 'City'
+,'' as 'State'
+,'' as 'Country'
+,'' as 'Postal Code'
+,'' as 'Latitude'
+,'' as 'Longitude'
+,'' as 'Time Zone'
+,'' as 'Weekly Schedule'
+,'' as 'Annual Schedule'
+,'' as 'Organization'
+,'' as 'Tax Region'
+,'' as 'Transportation Region'
+,'' as 'Single Site Sourcing'
+,'' as 'Fixed Service Time'
+,'' as 'Fixed Service Time Load'
+,'' as 'Fixed Service Time Unload'
+,'' as 'Variable Service Time Load'
+,'' as 'Variable Service Time Unload'
+,'' as 'Variable Service Time Basis'
+,'' as 'Number of Dock Doors'
+,'' as 'Dock Door Reset Time'
+,'' as 'Mandatory Routing Sequence'
+,'Include' as 'Status'
+,'' as 'Custom 1'
+,'' as 'Custom 2'
+,'' as 'Notes'
+,'' as 'Drone Eligible'
+from iam_orders;'''
 
 spec_enumerate = '''select * from iam_distinct_inventory_products'''
 
-coupa_group_members = '''select distinct g.group_name as 'Group'
+coupa_group_members = '''select x.GroupName as 'Group'
+,x.Member
+
+from (
+select distinct g.group_name as 'GroupName'
 ,dp.model_name as 'Member'
 
 from (
@@ -571,11 +662,15 @@ and (g.grade = dp.grade or g.grade = dp.grade+1)
 --and (g.approved_plant_1 = dp.production_plant or g.approved_plant_2 = dp.production_plant or g.approved_plant_3 = dp.production_plant)
 --this part is tricky and requires manual intervention.  I wont know how many specs will exist in the mvp_distinct_inventory_products table unless I look manually
 and (g.spec = dp.spec1 or g.spec = dp.spec2 or g.spec = dp.spec3 or g.spec = dp.spec4 or g.spec = dp.spec5 or g.spec = dp.spec6 or g.spec = dp.spec7)
+
+) x
+where x.Member is not null
+and x.Member <> ''
 ;'''
 
 
 coupa_groups = '''select distinct g.group_name as 'Group Name'
-,'Product' as 'Group Type'
+,'Products' as 'Group Type'
 
 from (
     --the stuff in this from statement creates the group.  We pull the groups necessary from the orders data.  Then we will fill the groups with inventory data above.  AKA the orders tell us what groups we need and the inventory is what we can actually put into the groups
@@ -640,10 +735,36 @@ coupa_customer_demand = '''select mp.period_number as Period
 ,mo.order_number as Customer
 ,g.group_name as Product
 ,'Set' as CollectionBasisProductName
-,'0' as 'Minimum Quantity'
-,'10000' as 'Unit Penalty Cost'
---the 'set' should, i think, make these groups use the All not Each setting.  Meaning the demand will fill with any one product in the group not try to fill all the products in the group.
+,'' as 'Mode'
 ,mo.ordered_pallets as Quantity
+,'0' as 'Minimum Quantity'
+,'100000' as 'Unit Penalty Cost'
+,'' as 'Series Offset Time'
+,'' as 'Service Level'
+,'' as 'Occurrences'
+,'' as 'Order Frequency'
+,'' as 'Seasonality'
+,'' as 'Trend'
+,'' as 'Unit Price Override'
+,'' as 'Unit Weight Override'
+,'' as 'Unit Volume Override'
+,'' as 'Priority'
+,'' as 'Periods Allowed Early'
+,'' as 'Early Delivery Penalty Cost'
+,'' as 'Early Delivery Penalty Cost Basis'
+,'' as 'Early Delivery Cost Inflation Factor'
+,'' as 'Cancel If Late'
+,'' as 'Periods Allowed Late'
+,'' as 'Late Delivery Penalty Cost'
+,'' as 'Late Delivery Penalty Cost Basis'
+,'' as 'Late Delivery Cost Inflation Factor'
+,'' as 'Single Source Fulfillment'
+,'' as 'Single Period Fulfillment'
+,'' as 'Fulfillment ID'
+,'' as 'Tracking ID'
+,'' as 'Seed'
+,'Include' as 'Status'
+,'' as 'Notes'
 
 from iam_orders mo
 
@@ -680,8 +801,6 @@ left join (
 on mo.order_number=g.order_number
 and mo.item_number=g.item_number
 ;'''
-
-coupa_customers = '''select distinct order_number as Name from iam_orders;'''
 
 coupa_periods = '''select period_number as Name, DATE_FORMATTED as 'Start Date', '' as Notes from iam_periods;'''
 
@@ -778,39 +897,17 @@ from (
 
 coupa_customer_sourcing = '''select
 '(ALL_Customers)' as Customer
-,n.product_model_name as Product
+,n.model_name as Product
 ,n.whs_code as Source
-,row_number() over (partition by n.product_model_name_no_age, n.whs_code order by n.age_joiner desc) * 50 'Unit Sourcing Cost'
+,row_number() over (partition by n.product_model_name_no_age, n.whs_code order by n.age desc) * 10 'Unit Sourcing Cost'
 from (
 --this select creates one row for every product for every whs
     select
-    k.product_model_name
-    ,k.product_model_name_no_age
-    ,k.age_joiner
-    ,sj.whs_code
-    from (
-        --this select grabs the distinct list of products with some dimensions to allow for the row_num creation later
-        select distinct
-        mi.item_number || "_" || mi.production_plant || "_" ||  mi.grade || "_" ||  mi.cleaned_spec || "_" ||  aj.age || "D" as product_model_name
-        ,mi.item_number || "_" || mi.production_plant || "_" ||  mi.grade || "_" ||  mi.cleaned_spec as product_model_name_no_age
-        ,cast(cast(aj.age as real) as integer) as age_joiner
-        ,'1' as site_joiner
-
-        from mvp_inventory mi
-
-        left join mvp_age_joiner aj
-        on mi.joiner=aj.joiner
-
-        where 1=1
-        and aj.age >= mi.age
-    ) k
-        --this left join allows me to duplicate the distinct list of products as many times as there are unique whs in the mvp_inventory table
-        left join (
-            select distinct whs_code
-            ,'1' as site_joiner
-            from mvp_inventory
-        ) sj
-        on k.site_joiner=sj.site_joiner
+    k.model_name
+    ,k.whs_code
+    ,k.age
+    ,k.item_number || '_' || k.production_plant || '_' || k.grade || '_' || k.cleaned_spec as product_model_name_no_age
+    from iam_distinct_whs_products k
 ) n
 ;'''
 
@@ -965,7 +1062,6 @@ production_policies_table_df = pd.read_sql_query(coupa_production_policies, sqli
 transportation_policies_table_df = pd.read_sql_query(coupa_transportation_policies, sqlite3_connection)
 inventory_policies_table_df = pd.read_sql_query(coupa_inventory_policies, sqlite3_connection)
 sites_table_df = pd.read_sql_query(coupa_sites, sqlite3_connection)
-customers_table_df = pd.read_sql_query(coupa_customers, sqlite3_connection)
 group_table_df = pd.read_sql_query(coupa_groups, sqlite3_connection)
 group_members_table_df = pd.read_sql_query(coupa_group_members, sqlite3_connection)
 customer_demand_table_df = pd.read_sql_query(coupa_customer_demand, sqlite3_connection)
@@ -985,7 +1081,6 @@ with pd.ExcelWriter('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximizat
     transportation_policies_table_df.to_excel(writer, sheet_name='TG_Policies', index=False)
     inventory_policies_table_df.to_excel(writer, sheet_name='InventoryPolicies', index=False)
     sites_table_df.to_excel(writer, sheet_name='Sites', index=False)
-    customers_table_df.to_excel(writer, sheet_name='Customers', index=False)
     group_table_df.to_excel(writer, sheet_name='Groups', index=False)
     group_members_table_df.to_excel(writer, sheet_name='GroupMembers', index=False)
     customer_demand_table_df.to_excel(writer, sheet_name='CustomerDemand', index=False)
