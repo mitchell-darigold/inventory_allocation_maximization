@@ -891,7 +891,10 @@ coupa_customer_sourcing = '''select
 '(ALL_Customers)' as Customer
 ,n.model_name as Product
 ,n.whs_code as Source
-,row_number() over (partition by n.product_model_name_no_age, n.whs_code order by n.age desc) * 10 'Unit Sourcing Cost'
+,row_number() over (partition by n.product_model_name_no_age, n.whs_code order by n.age desc) * 10 as 'Unit Sourcing Cost'
+,'exclude' as Status
+,'include' as scenario_any_whs
+,'exclude' as scenario_specified_whs
 from (
 --this select creates one row for every product for every whs
     select
@@ -908,7 +911,39 @@ select distinct '(ALL_Customers)' as Customer
 ,'DUMMY_PRODUCT' as Product
 ,'(ALL_Sites)' as Source
 ,'100000' as 'Unit Sourcing Cost'
+,'exclude' as Status
+,'include' as scenario_any_whs
+,'include' as scenario_specified_whs
 from iam_inventory
+
+union all
+
+select o.order_number as Customer
+,p.Product as Product
+,o.shipping_whs_code as Source
+,p.unit_sourcing_cost as 'Unit Sourcing Cost'
+,'exclude' as Status
+,'exclude' as scenario_any_whs
+,'include' as scenario_specified_whs
+
+from iam_orders o
+
+left join (
+	select
+	n.model_name as Product
+	,n.whs_code as Source
+	,row_number() over (partition by n.product_model_name_no_age, n.whs_code order by n.age desc) * 10 as unit_sourcing_cost
+	from (
+	--this select creates one row for every product for every whs
+	    select
+	    k.model_name
+	    ,k.whs_code
+	    ,k.age
+	    ,k.item_number || '_' || k.production_plant || '_' || k.grade || '_' || k.cleaned_spec as product_model_name_no_age
+	    from iam_distinct_whs_products k
+	) n
+) p
+on o.shipping_whs_code=p.source
 ;'''
 
 ###############################################Import data section###################################################
