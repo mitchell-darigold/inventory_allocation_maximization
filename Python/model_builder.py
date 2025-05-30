@@ -722,15 +722,14 @@ select distinct
 from iam_periods
 ;'''
 
-coupa_customer_demand = '''select mp.period_number as Period
-,mo.order_number as Customer
-,g.group_name as Product
-,'Set' as CollectionBasisProductName
-,'' as 'Mode'
-,mo.ordered_pallets as Quantity
+coupa_customer_demand = '''select Period
+,Customer
+,Product
+,CollectionBasisProductName
+,Mode
+,Quantity
 ,'0' as 'Minimum Quantity'
---,'100000' as 'Unit Penalty Cost'
-,1000000 - (mp.period_number*7500) as 'Unit Penalty Cost'
+,UnitPenaltyCost + row_num as 'Unit Penalty Cost'
 ,'' as 'Series Offset Time'
 ,'' as 'Service Level'
 ,'' as 'Occurrences'
@@ -758,41 +757,51 @@ coupa_customer_demand = '''select mp.period_number as Period
 ,'Include' as 'Status'
 ,'' as 'Notes'
 
-from iam_orders mo
+from (
+    select mp.period_number as Period
+    ,mo.order_number as Customer
+    ,g.group_name as Product
+    ,'Set' as CollectionBasisProductName
+    ,'' as 'Mode'
+    ,mo.ordered_pallets as Quantity
+    ,1000000 - (mp.period_number*7500) as UnitPenaltyCost
+    ,row_number() over (partition by mp.period_number, g.group_name order by mp.period_number) as row_num
 
-left join iam_periods mp
-on mo.ship_date=mp.date_formatted
+    from iam_orders mo
 
-left join (
-    --the stuff in this statement creates the group.
-    --keeping the subselect seperate from the joins that happen above for clarity
-    select mo.item_number || "_" || mo.approved_plant_concat || "_" || mo.grade || "_" || mo.spec as group_name
-    ,mo.item_number
-    ,mo.approved_plant_1
-    ,mo.approved_plant_2
-    ,mo.approved_plant_3
-    ,mo.grade
-    ,mo.spec as spec
-    ,mo.order_number
-    from (
-        --just doing the case when in a subselect for clarity
-        select item_number
-        ,approved_plant_1
-        ,approved_plant_2
-        ,approved_plant_3
-        ,case when approved_plant_2 is null then approved_plant_1
-            when approved_plant_3 is null then approved_plant_1 || "-" || approved_plant_2
-            else approved_plant_1
-            end as approved_plant_concat
-        ,grade
-        ,spec
-        ,order_number
-        from iam_orders
-    ) mo
-) g
-on mo.order_number=g.order_number
-and mo.item_number=g.item_number
-;'''
+    left join iam_periods mp
+    on mo.ship_date=mp.date_formatted
+
+    left join (
+        --the stuff in this statement creates the group.
+        --keeping the subselect seperate from the joins that happen above for clarity
+        select mo.item_number || "_" || mo.approved_plant_concat || "_" || mo.grade || "_" || mo.spec as group_name
+        ,mo.item_number
+        ,mo.approved_plant_1
+        ,mo.approved_plant_2
+        ,mo.approved_plant_3
+        ,mo.grade
+        ,mo.spec as spec
+        ,mo.order_number
+        from (
+            --just doing the case when in a subselect for clarity
+            select item_number
+            ,approved_plant_1
+            ,approved_plant_2
+            ,approved_plant_3
+            ,case when approved_plant_2 is null then approved_plant_1
+                when approved_plant_3 is null then approved_plant_1 || "-" || approved_plant_2
+                else approved_plant_1
+                end as approved_plant_concat
+            ,grade
+            ,spec
+            ,order_number
+            from iam_orders
+        ) mo
+    ) g
+    on mo.order_number=g.order_number
+    and mo.item_number=g.item_number
+);'''
 
 coupa_periods = '''select period_number as Name, DATE_FORMATTED as 'Start Date', '' as Notes from iam_periods;'''
 
