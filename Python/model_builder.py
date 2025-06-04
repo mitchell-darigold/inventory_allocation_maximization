@@ -3,6 +3,8 @@ import sqlite3
 from datetime import datetime, timedelta
 from datetime import date
 from dateutil.parser import parse
+import tkinter
+from tkinter import filedialog
 
 
 #Ask user for date to use with the loading.  It needs to be the date the data was pulled on
@@ -37,6 +39,19 @@ print('Successfully connected to the database')
 iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\inventory.csv'
 iam_item_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\item.csv'
 iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\orders.csv'
+
+#allow user to choose the location of the three files
+#print('Choose the inventory file please:')
+#tkinter.Tk().withdraw()
+#iam_inventory_path = filedialog.askopenfilename()
+#print('Choose the item file please:')
+#tkinter.Tk().withdraw()
+#iam_item_path = filedialog.askopenfilename()
+#print('Choose the order file please:')
+#tkinter.Tk().withdraw()
+#iam_orders_path = filedialog.askopenfilename()
+print('Thank you, processing beginning...')
+
 
 #f strings
 iam_inventory_table = 'iam_inventory'
@@ -202,7 +217,7 @@ create_table_iam_bom_assignments = '''create table iam_bom_assignments as
     ) z
     ;'''
 
-coupa_bom_assignments = '''select * from iam_bom_assigments;'''
+coupa_bom_assignments = '''select * from iam_bom_assignments;'''
 
 coupa_production_policies = '''select mba.site
 ,mba.product
@@ -215,7 +230,7 @@ coupa_production_policies = '''select mba.site
 ,'' as 'Production Frequency'
 ,'include' as 'Status'
 ,'' as 'Notes'
-from iam_bom_assigments mba
+from iam_bom_assignments mba
 
 union
 

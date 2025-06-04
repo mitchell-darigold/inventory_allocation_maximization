@@ -3,6 +3,8 @@ import sqlite3
 from datetime import datetime, timedelta
 from datetime import date
 from dateutil.parser import parse
+import tkinter
+from tkinter import filedialog
 
 
 #Ask user for date to use with the loading.  It needs to be the date the data was pulled on
@@ -31,12 +33,25 @@ sqlite3_connection = sqlite3.connect(sqlite3_conn_path)
 cursor = sqlite3_connection.cursor()
 print('Successfully connected to the database')
 
-###############################################################Variable list############################################################3
+###############################################################Variable list############################################################
 
 #Paths
 iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\inventory.csv'
 iam_item_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\item.csv'
 iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\orders.csv'
+
+#allow user to choose the location of the three files
+#print('Choose the inventory file please:')
+#tkinter.Tk().withdraw()
+#iam_inventory_path = filedialog.askopenfilename()
+#print('Choose the item file please:')
+#tkinter.Tk().withdraw()
+#iam_item_path = filedialog.askopenfilename()
+#print('Choose the order file please:')
+#tkinter.Tk().withdraw()
+#iam_orders_path = filedialog.askopenfilename()
+print('Thank you, processing beginning...')
+
 
 #f strings
 iam_inventory_table = 'iam_inventory'
@@ -202,7 +217,7 @@ create_table_iam_bom_assignments = '''create table iam_bom_assignments as
     ) z
     ;'''
 
-coupa_bom_assignments = '''select * from iam_bom_assigments;'''
+coupa_bom_assignments = '''select * from iam_bom_assignments;'''
 
 coupa_production_policies = '''select mba.site
 ,mba.product
@@ -215,7 +230,7 @@ coupa_production_policies = '''select mba.site
 ,'' as 'Production Frequency'
 ,'include' as 'Status'
 ,'' as 'Notes'
-from iam_bom_assigments mba
+from iam_bom_assignments mba
 
 union
 
@@ -722,15 +737,14 @@ select distinct
 from iam_periods
 ;'''
 
-coupa_customer_demand = '''select mp.period_number as Period
-,mo.order_number as Customer
-,g.group_name as Product
-,'Set' as CollectionBasisProductName
-,'' as 'Mode'
-,mo.ordered_pallets as Quantity
+coupa_customer_demand = '''select Period
+,Customer
+,Product
+,CollectionBasisProductName
+,Mode
+,Quantity
 ,'0' as 'Minimum Quantity'
---,'100000' as 'Unit Penalty Cost'
-,1000000 - (mp.period_number*7500) as 'Unit Penalty Cost'
+,UnitPenaltyCost + row_num as 'Unit Penalty Cost'
 ,'' as 'Series Offset Time'
 ,'' as 'Service Level'
 ,'' as 'Occurrences'
@@ -758,41 +772,51 @@ coupa_customer_demand = '''select mp.period_number as Period
 ,'Include' as 'Status'
 ,'' as 'Notes'
 
-from iam_orders mo
+from (
+    select mp.period_number as Period
+    ,mo.order_number as Customer
+    ,g.group_name as Product
+    ,'Set' as CollectionBasisProductName
+    ,'' as 'Mode'
+    ,mo.ordered_pallets as Quantity
+    ,1000000 - (mp.period_number*7500) as UnitPenaltyCost
+    ,row_number() over (partition by mp.period_number, g.group_name order by mp.period_number) as row_num
 
-left join iam_periods mp
-on mo.ship_date=mp.date_formatted
+    from iam_orders mo
 
-left join (
-    --the stuff in this statement creates the group.
-    --keeping the subselect seperate from the joins that happen above for clarity
-    select mo.item_number || "_" || mo.approved_plant_concat || "_" || mo.grade || "_" || mo.spec as group_name
-    ,mo.item_number
-    ,mo.approved_plant_1
-    ,mo.approved_plant_2
-    ,mo.approved_plant_3
-    ,mo.grade
-    ,mo.spec as spec
-    ,mo.order_number
-    from (
-        --just doing the case when in a subselect for clarity
-        select item_number
-        ,approved_plant_1
-        ,approved_plant_2
-        ,approved_plant_3
-        ,case when approved_plant_2 is null then approved_plant_1
-            when approved_plant_3 is null then approved_plant_1 || "-" || approved_plant_2
-            else approved_plant_1
-            end as approved_plant_concat
-        ,grade
-        ,spec
-        ,order_number
-        from iam_orders
-    ) mo
-) g
-on mo.order_number=g.order_number
-and mo.item_number=g.item_number
-;'''
+    left join iam_periods mp
+    on mo.ship_date=mp.date_formatted
+
+    left join (
+        --the stuff in this statement creates the group.
+        --keeping the subselect seperate from the joins that happen above for clarity
+        select mo.item_number || "_" || mo.approved_plant_concat || "_" || mo.grade || "_" || mo.spec as group_name
+        ,mo.item_number
+        ,mo.approved_plant_1
+        ,mo.approved_plant_2
+        ,mo.approved_plant_3
+        ,mo.grade
+        ,mo.spec as spec
+        ,mo.order_number
+        from (
+            --just doing the case when in a subselect for clarity
+            select item_number
+            ,approved_plant_1
+            ,approved_plant_2
+            ,approved_plant_3
+            ,case when approved_plant_2 is null then approved_plant_1
+                when approved_plant_3 is null then approved_plant_1 || "-" || approved_plant_2
+                else approved_plant_1
+                end as approved_plant_concat
+            ,grade
+            ,spec
+            ,order_number
+            from iam_orders
+        ) mo
+    ) g
+    on mo.order_number=g.order_number
+    and mo.item_number=g.item_number
+);'''
 
 coupa_periods = '''select period_number as Name, DATE_FORMATTED as 'Start Date', '' as Notes from iam_periods;'''
 
@@ -1113,7 +1137,6 @@ customer_table_df = pd.read_sql_query(coupa_customers, sqlite3_connection)
 periods_table_df = pd.read_sql_query(coupa_periods, sqlite3_connection)
 production_constraints_table_df = pd.read_sql_query(coupa_production_constraints, sqlite3_connection)
 customer_sourcing_table_df = pd.read_sql_query(coupa_customer_sourcing, sqlite3_connection)
-
 
 #################################Create a single excel file with each relevant sheet##################################
 
