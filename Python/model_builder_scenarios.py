@@ -5,24 +5,25 @@ from datetime import date
 from dateutil.parser import parse
 import tkinter
 from tkinter import filedialog
+import numpy as np
 
 
 #Ask user for date to use with the loading.  It needs to be the date the data was pulled on
 
-#while True:
-#    date_string = input("Enter the date you pulled the data on in YYYY-MM-DD format: ")
-#    try:
-#        date_object = datetime.strptime(date_string, "%Y-%m-%d").date()
-#        break
-#    except ValueError:
-#       print("Invalid date format. Please use YYYY-MM-DD.")
-#print("You entered:", date_object)
+while True:
+    date_string = input("Enter the date you pulled the data on in YYYY-MM-DD format: ")
+    try:
+        date_object = datetime.strptime(date_string, "%Y-%m-%d").date()
+        break
+    except ValueError:
+       print("Invalid date format. Please use YYYY-MM-DD.")
+print("You entered:", date_object)
 
-#start_date = parse(date_string)
+start_date = parse(date_string)
 
 #these two lines are just so I dont have to enter a date everytime I run a test.  They should be commented out once the project is complete
-date_string = '2025-05-07'
-start_date = parse(date_string)
+#date_string = '2025-05-07'
+#start_date = parse(date_string)
 
 #Make a Sqlite connection
 
@@ -36,9 +37,9 @@ print('Successfully connected to the database')
 ###############################################################Variable list############################################################
 
 #Paths
-iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\inventory.csv'
-iam_item_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\item.csv'
-iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\orders.csv'
+iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\inventory20250605.csv'
+iam_item_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\item_master.csv'
+iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\orders20250605.csv'
 
 #allow user to choose the location of the three files
 #print('Choose the inventory file please:')
@@ -968,6 +969,7 @@ left join (
 	) n
 ) p
 on o.shipping_whs_code=p.source
+where o.shipping_whs_code <> ''
 ;'''
 
 ###############################################Import data section###################################################
@@ -993,6 +995,16 @@ iam_orders_df['Grade'] = iam_orders_df['Grade'].fillna('102')
 iam_orders_df = iam_orders_df.dropna(subset=['Order#'])
 iam_orders_df = iam_orders_df.dropna(subset=['Sum of Ordered Pallets'])
 iam_orders_df = iam_orders_df.dropna(subset=['Item#'])
+#I add O for order or C for contract to the beginning of the order number
+iam_orders_df['Order#'] = iam_orders_df['Demand Type'].str[0] + '_' + iam_orders_df['Order#']
+
+#i want to remove the values in the assigned shipping whs that arent from one of the whs in the set of whs I have in my inventory data
+def set_to_blank(df, column_name):
+    valid_list = iam_inventory_df['WHSE_CODE'].unique()
+    df[column_name] = df[column_name].apply(lambda x: x if x in valid_list else '')
+    return df
+iam_orders_df = set_to_blank(iam_orders_df, 'Shipping Warehouse Code')
+
 #this may need to be adjusted in the future.  I cant have null values in the approving plant column.  A null value in approving plan 1 just means any plant can fill the order.  So I put 'Any' in there
 #I talked to aaron and any order that is missing an approved plant should not get allocated to.  Therefore, Ill remove any row missing the approved plant 
 #iam_orders_df['Approved Plant 1'] = iam_orders_df['Approved Plant 1'].fillna('ANY')
@@ -1024,6 +1036,10 @@ def remove_duplicates(input_list):
 iam_inventory_df['SPEC_LISTED'] = iam_inventory_df['SPEC_LISTED'].apply(remove_duplicates)
 #left join the allowed specs onto the inventory df
 iam_inventory_spec_fix_df = pd.merge(iam_inventory_df, spec_df, on='ITEM_NUMBER', how='left')
+
+##
+iam_inventory_spec_fix_df.to_excel('test.xlsx', index=False)
+
 #create a function to remove specs that dont show up in the allowed spec lists
 def filter_specs(df, col_getting_filtered, allowed_specs):
     df[col_getting_filtered] = df.apply(lambda row: [x for x in row[col_getting_filtered] if x in row[allowed_specs]], axis=1)

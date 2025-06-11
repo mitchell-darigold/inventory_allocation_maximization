@@ -5,24 +5,26 @@ from datetime import date
 from dateutil.parser import parse
 import tkinter
 from tkinter import filedialog
+import numpy as np
+import math
 
 
 #Ask user for date to use with the loading.  It needs to be the date the data was pulled on
 
-#while True:
-#    date_string = input("Enter the date you pulled the data on in YYYY-MM-DD format: ")
-#    try:
-#        date_object = datetime.strptime(date_string, "%Y-%m-%d").date()
-#        break
-#    except ValueError:
-#       print("Invalid date format. Please use YYYY-MM-DD.")
-#print("You entered:", date_object)
+while True:
+    date_string = input("Enter the date you pulled the data on in YYYY-MM-DD format: ")
+    try:
+        date_object = datetime.strptime(date_string, "%Y-%m-%d").date()
+        break
+    except ValueError:
+       print("Invalid date format. Please use YYYY-MM-DD.")
+print("You entered:", date_object)
 
-#start_date = parse(date_string)
+start_date = parse(date_string)
 
 #these two lines are just so I dont have to enter a date everytime I run a test.  They should be commented out once the project is complete
-date_string = '2025-05-07'
-start_date = parse(date_string)
+#date_string = '2025-05-07'
+#start_date = parse(date_string)
 
 #Make a Sqlite connection
 
@@ -33,12 +35,12 @@ sqlite3_connection = sqlite3.connect(sqlite3_conn_path)
 cursor = sqlite3_connection.cursor()
 print('Successfully connected to the database')
 
-###############################################################Variable list############################################################3
+###############################################################Variable list############################################################
 
 #Paths
-iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\inventory.csv'
-iam_item_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\item.csv'
-iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\orders.csv'
+iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\inventory20250605.csv'
+iam_item_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\item_master.csv'
+iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\orders20250605.csv'
 
 #allow user to choose the location of the three files
 #print('Choose the inventory file please:')
@@ -95,6 +97,7 @@ create_table_iam_distinct_inventory_products = '''create table iam_distinct_inve
     ,p.grade
     ,p.cleaned_spec
     ,p.item_number
+    ,p.spec_value
 
     from (
         --this section joins the raw inventory data with a joiner table to produce 1 row for every possible age for each sku_prod facility_grade_spec combination at or above the current age of the product in inventory
@@ -152,6 +155,7 @@ create_table_iam_distinct_whs_products = '''create table iam_distinct_whs_produc
     ,p.cleaned_spec
     ,p.item_number
     ,p.whs_code
+    ,p.spec_value
 
     from (
         --this section joins the raw inventory data with a joiner table to produce 1 row for every possible age for each sku_prod facility_grade_spec combination at or above the current age of the product in inventory
@@ -911,11 +915,28 @@ from (
 ) m
 ;'''
 
+##the unit sourcing cost is getting complicated so ill tryr to explain it here
+##the unit sourcing cost is how I incentive the model to choose which product to use to fill an order
+#in the customer demand table there are incentives to fill the youngest orders first and oldest last
+#at the moment (6/9/25) there are two incentives at play here in the customer sourcing
+#the first and priority incentive is age.  We want to use the oldest product to fill an order possible
+#the second and secondary priority is spec flexibility.  We want to use the least flexible specs first before we use up the most flexible specs.  Theoretically the more flexible specs should get saved for next allocation if possible.
+
+#age
+#i use a windows function to apply a descending row number to the products by age.  120 gets 1, 119 gets 2, etc.  I multiple that by 100 arbitrarily to create a value.  So product 120 days old costs 100 and product 1 day old costs 12000.  its cheaper to use old product
+
+#spec flexibility
+#i give a value to the spec based on the number of specs a product can fill.  A product with only 9999A spec gets 1 but a product with 9999A-9999E-3007O-3005S-30007DRYGUM gets 5.  I multiple that by 10 arbitrarily to create a value.  So product with a spec value of 1 costs 10 but a spec value of 5 costs 50. Its cheaper to use inflexible specs
+
+#i did test this but as I add more incentives I ahve to be careful that the incentives dont over rule existing incentives.  I want age to always be the number 1 decision maker.  So if I add flexibility and a 1 spec flexibility of age 10 makes it more expensive to use than a 10 spec flexibility age 11 then the model will use the age 10 product.  I want it to use the age 11 with the least flexibile spec.  So be careful.
 coupa_customer_sourcing = '''select
 '(ALL_Customers)' as Customer
 ,n.model_name as Product
 ,n.whs_code as Source
-,row_number() over (partition by n.product_model_name_no_age, n.whs_code order by n.age desc) * 10 'Unit Sourcing Cost'
+,row_number() over (partition by n.product_model_name_no_age, n.whs_code order by n.age desc) * 100 + n.spec_value * 10 as 'Unit Sourcing Cost'
+,'exclude' as Status
+,'include' as scenario_any_whs
+,'exclude' as scenario_specified_whs
 from (
 --this select creates one row for every product for every whs
     select
@@ -923,6 +944,7 @@ from (
     ,k.whs_code
     ,k.age
     ,k.item_number || '_' || k.production_plant || '_' || k.grade || '_' || k.cleaned_spec as product_model_name_no_age
+    ,k.spec_value
     from iam_distinct_whs_products k
 ) n
 
@@ -932,7 +954,42 @@ select distinct '(ALL_Customers)' as Customer
 ,'DUMMY_PRODUCT' as Product
 ,'(ALL_Sites)' as Source
 ,'100000' as 'Unit Sourcing Cost'
+,'exclude' as Status
+,'include' as scenario_any_whs
+,'include' as scenario_specified_whs
 from iam_inventory
+
+union all
+
+--specific warehouse scenario
+select o.order_number as Customer
+,p.Product as Product
+,o.shipping_whs_code as Source
+,p.unit_sourcing_cost as 'Unit Sourcing Cost'
+,'exclude' as Status
+,'exclude' as scenario_any_whs
+,'include' as scenario_specified_whs
+
+from iam_orders o
+
+left join (
+	select
+	n.model_name as Product
+	,n.whs_code as Source
+	,row_number() over (partition by n.product_model_name_no_age, n.whs_code order by n.age desc) * 100 + n.spec_value * 10 as unit_sourcing_cost
+	from (
+	--this select creates one row for every product for every whs
+	    select
+	    k.model_name
+	    ,k.whs_code
+	    ,k.age
+	    ,k.item_number || '_' || k.production_plant || '_' || k.grade || '_' || k.cleaned_spec as product_model_name_no_age
+	    ,k.spec_value
+	    from iam_distinct_whs_products k
+	) n
+) p
+on o.shipping_whs_code=p.source
+where o.shipping_whs_code <> ''
 ;'''
 
 ###############################################Import data section###################################################
@@ -942,6 +999,10 @@ iam_inventory_df = pd.read_csv(iam_inventory_path)
 #add an additional column for joining age data later
 iam_inventory_df['JOINER'] = 1
 iam_inventory_df['SPEC'] = iam_inventory_df['SPEC'].fillna('9999A')
+#round inventory down to the next whole number.  I cant have decimals in the model
+iam_inventory_df['Sum of Inventory Pallets'] = iam_inventory_df['Sum of Inventory Pallets'].apply(math.floor)
+#dropping any rows that rounded down to 0
+iam_inventory_df = iam_inventory_df[iam_inventory_df['Sum of Inventory Pallets'] != 0]
 #load item
 iam_item_df = pd.read_csv(iam_item_path)
 #fill null grade values with 101
@@ -955,9 +1016,23 @@ iam_orders_df['SHIP_DATE_FORMATTED'] = iam_orders_df['Ship Date'].str.split(' ')
 #clean up some of the columns
 iam_orders_df['Spec'] = iam_orders_df['Spec'].fillna('9999A')
 iam_orders_df['Grade'] = iam_orders_df['Grade'].fillna('102')
+#i cant have decimal demand.  I need whole numbers.  I will round the demand and then drop any that round to 0
+iam_orders_df['Sum of Ordered Pallets'] = iam_orders_df['Sum of Ordered Pallets'].apply(round) 
+iam_orders_df = iam_orders_df[iam_orders_df['Sum of Ordered Pallets'] != 0]
+#drop rows that are blank
 iam_orders_df = iam_orders_df.dropna(subset=['Order#'])
 iam_orders_df = iam_orders_df.dropna(subset=['Sum of Ordered Pallets'])
 iam_orders_df = iam_orders_df.dropna(subset=['Item#'])
+#I add O for order or C for contract to the beginning of the order number
+iam_orders_df['Order#'] = iam_orders_df['Demand Type'].str[0] + '_' + iam_orders_df['Order#']
+
+#i want to remove the values in the assigned shipping whs that arent from one of the whs in the set of whs I have in my inventory data
+def set_to_blank(df, column_name):
+    valid_list = iam_inventory_df['WHSE_CODE'].unique()
+    df[column_name] = df[column_name].apply(lambda x: x if x in valid_list else '')
+    return df
+iam_orders_df = set_to_blank(iam_orders_df, 'Shipping Warehouse Code')
+
 #this may need to be adjusted in the future.  I cant have null values in the approving plant column.  A null value in approving plan 1 just means any plant can fill the order.  So I put 'Any' in there
 #I talked to aaron and any order that is missing an approved plant should not get allocated to.  Therefore, Ill remove any row missing the approved plant 
 #iam_orders_df['Approved Plant 1'] = iam_orders_df['Approved Plant 1'].fillna('ANY')
@@ -989,6 +1064,7 @@ def remove_duplicates(input_list):
 iam_inventory_df['SPEC_LISTED'] = iam_inventory_df['SPEC_LISTED'].apply(remove_duplicates)
 #left join the allowed specs onto the inventory df
 iam_inventory_spec_fix_df = pd.merge(iam_inventory_df, spec_df, on='ITEM_NUMBER', how='left')
+
 #create a function to remove specs that dont show up in the allowed spec lists
 def filter_specs(df, col_getting_filtered, allowed_specs):
     df[col_getting_filtered] = df.apply(lambda row: [x for x in row[col_getting_filtered] if x in row[allowed_specs]], axis=1)
@@ -997,6 +1073,14 @@ def filter_specs(df, col_getting_filtered, allowed_specs):
 iam_inventory_spec_fix_df = filter_specs(iam_inventory_spec_fix_df, 'SPEC_LISTED', 'ALLOWED_SPEC')
 #create a new column to hold the functions result
 iam_inventory_spec_fix_df['CLEANED_SPEC'] = iam_inventory_spec_fix_df['SPEC_LISTED'].apply(lambda x: '-'.join(map(str,x)))
+#count the possible specs to allow for spec value calculations later
+def count_hyphens(text):
+        return text.count('-')
+#iam_inventory_spec_fix_df['SPEC_VALUE'] = iam_inventory_spec_fix_df['CLEANED_SPEC'].apply(lambda x: len(x))
+iam_inventory_spec_fix_df['SPEC_VALUE'] = iam_inventory_spec_fix_df['CLEANED_SPEC'].apply(count_hyphens)+1
+
+iam_inventory_spec_fix_df.to_excel('test.xlsx', index=False)
+
 #remove the unneeded columns
 iam_inventory_spec_fix_df = iam_inventory_spec_fix_df.drop('SPEC_LISTED', axis=1)
 iam_inventory_spec_fix_df = iam_inventory_spec_fix_df.drop('ALLOWED_SPEC', axis=1)
@@ -1102,7 +1186,6 @@ customer_table_df = pd.read_sql_query(coupa_customers, sqlite3_connection)
 periods_table_df = pd.read_sql_query(coupa_periods, sqlite3_connection)
 production_constraints_table_df = pd.read_sql_query(coupa_production_constraints, sqlite3_connection)
 customer_sourcing_table_df = pd.read_sql_query(coupa_customer_sourcing, sqlite3_connection)
-
 
 #################################Create a single excel file with each relevant sheet##################################
 
