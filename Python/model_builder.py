@@ -38,9 +38,13 @@ print('Successfully connected to the database')
 ###############################################################Variable list############################################################
 
 #Paths
-iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\inventory20250605.csv'
+#iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\inventory20250605.csv'
+iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\inventory.csv'
+#iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\model\\inventory20250512.csv'
 iam_item_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\item_master.csv'
-iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\orders20250605.csv'
+#iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\orders20250605.csv'
+iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\orders.csv'
+#iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\model\\orders20250512.csv'
 
 #allow user to choose the location of the three files
 #print('Choose the inventory file please:')
@@ -1017,7 +1021,7 @@ iam_orders_df['SHIP_DATE_FORMATTED'] = iam_orders_df['Ship Date'].str.split(' ')
 iam_orders_df['Spec'] = iam_orders_df['Spec'].fillna('9999A')
 iam_orders_df['Grade'] = iam_orders_df['Grade'].fillna('102')
 #i cant have decimal demand.  I need whole numbers.  I will round the demand and then drop any that round to 0
-iam_orders_df['Sum of Ordered Pallets'] = iam_orders_df['Sum of Ordered Pallets'].apply(round) 
+iam_orders_df['Sum of Ordered Pallets'] = iam_orders_df['Sum of Ordered Pallets'].round(0) 
 iam_orders_df = iam_orders_df[iam_orders_df['Sum of Ordered Pallets'] != 0]
 #drop rows that are blank
 iam_orders_df = iam_orders_df.dropna(subset=['Order#'])
