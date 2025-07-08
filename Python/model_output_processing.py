@@ -84,32 +84,28 @@ inv_df['join_col'] = inv_df[inv_cols].astype(str).agg(''.join, axis=1)
 #if there are 15 units going into filling an order, I want 15 rows duplicated
 df = df.loc[df.index.repeat(df['Flow Units'])].reset_index(drop=True)
 
-#drop columns that arent relevant
-#df = df.drop(['Arriving Period Name','Temperature Class','Hazardous Goods','Shipment Size Basis','Organization Name','Mode','Flow Cubic', 'Service Hours', 'Service Distance', 'Flow Revenue', 'Outbound Warehousing Policy Cost', 'Transportation Policy Cost', 'Sourcing Policy Cost', 'Duty Cost', 'In Transit Inventory', 'Intransit Inventory Holding Cost', 'CO2', 'CO2 Cost', 'Total Cost', 'Lead Time Cost', 'Sourcing Process Cost', 'Transportation Process Cost', 'Outbound Inventory Process Cost', 'Total Outbound Warehousing Cost', 'Total Sourcing Cost', 'Total Transportation Cost', 'Departing Period Number', 'Arriving Period Number', 'Scenario ID', 'Sub-Scenario ID'], axis=1)
-
-df = df.drop(['Scenario', 'Departing Period Name','Arriving Period Name', 'Product Name', 'Temperature Class', 'Hazardous Goods', 'Organization Name', 'Mode', 'Total Demand', 'Total Demand Served', 'Shipment Size', 'Shipment Size Basis', 'Flow Units', 'Flow Weight', 'Flow Cubic', 'Service Hours', 'Service Distance', 'Flow Revenue', 'Outbound Warehousing Policy Cost', 'Transportation Policy Cost', 'Sourcing Policy Cost', 'Duty Cost', 'In Transit Inventory', 'Intransit Inventory Holding Cost', 'CO2', 'CO2 Cost', 'Total Cost', 'Lead Time Cost', 'Sourcing Process Cost', 'Transportation Process Cost', 'Outbound Inventory Process Cost', 'Total Outbound Warehousing Cost', 'Total Sourcing Cost', 'Total Transportation Cost', 'Departing Period Number', 'Arriving Period Number', 'Scenario ID', 'Sub-Scenario ID', 'PERIOD_NUMBER', 'DATE_FORMATTED', 'age'], axis=1)
+#drop columns and rows that arent relevant
+df = df[df['Customer Name'] != 'Trash']
+df = df.drop(['Departing Period Name','Arriving Period Name', 'Product Name', 'Temperature Class', 'Hazardous Goods', 'Organization Name', 'Mode', 'Total Demand', 'Total Demand Served', 'Shipment Size', 'Shipment Size Basis', 'Flow Units', 'Flow Weight', 'Flow Cubic', 'Service Hours', 'Service Distance', 'Flow Revenue', 'Outbound Warehousing Policy Cost', 'Transportation Policy Cost', 'Sourcing Policy Cost', 'Duty Cost', 'In Transit Inventory', 'Intransit Inventory Holding Cost', 'CO2', 'CO2 Cost', 'Total Cost', 'Lead Time Cost', 'Sourcing Process Cost', 'Transportation Process Cost', 'Outbound Inventory Process Cost', 'Total Outbound Warehousing Cost', 'Total Sourcing Cost', 'Total Transportation Cost', 'Departing Period Number', 'Arriving Period Number', 'Scenario ID', 'Sub-Scenario ID', 'PERIOD_NUMBER', 'DATE_FORMATTED', 'age'], axis=1)
 inv_df = inv_df.drop(['AGE', 'TOTAL_WEIGHTS', 'TOTAL_PALLETS', 'ITEM_NUMBER', 'GRADE', 'PRODUCTION_PLANT', 'SPEC', 'WHS_CODE', 'JOINER', 'CLEANED_SPEC', 'SPEC_VALUE',], axis=1)
 
 
 #remove this after testing
-df.to_csv('customer_flows.csv')
-inv_df.to_csv('inventory.csv')
+#df.to_csv('customer_flows.csv')
+#inv_df.to_csv('inventory.csv')
 
 
 #seperate the customer flows into a df for the any_whs scenario
-#any_df = df[df['Scenario'] == 'any_whs']
-#specific_df = df[df['Scenario'] == 'specified_whs']
+any_df = df[df['Scenario'] == 'any_whs']
+specific_df = df[df['Scenario'] == 'specified_whs']
 
 #function to ascribe the inventory to the customer flows
 joined_df = pd.DataFrame(columns=['join_col','Customer Name','Source Name','SHIP_DATE','item_number', 'production_facility', 'grade', 'spec', 'start_age','LOT_NO','SUBLOT_NO'])
 
-
-'item_number', 'production_facility', 'grade', 'spec', 'start_age',
-
 print('Connecting inventory lot and sublot to customer flows data.  This is slow...')
 tic = time.perf_counter()
 # Iterate through each row of df1
-for index1, row1 in df.iterrows():
+for index1, row1 in any_df.iterrows():
     match_found = False
     # Iterate through rows of df_pool to find a match
     for index_pool, row_pool in inv_df.iterrows():
@@ -135,5 +131,13 @@ for index1, row1 in df.iterrows():
             break  # Move to the next row in df1 after finding a match
 toc = time.perf_counter()
 print(f"Joined inventory and customer flows in {toc - tic:0.4f} seconds")
+
+#a little cleaning of the joined df
+joined_df['Order Number'] = joined_df['Customer Name'].str.split('_').str[1]
+joined_df = joined_df.drop(['join_col','Customer Name'])
+joined_df = joined_df.rename(columns={'Source Name': 'whs code', 'SHIP_DATE':'ship date', 'item_number':'sku', 'start_age':'age', 'LOT_NO':'lot no','SUBLOT_NO':'sublot no','production_facility':'production facility'})
+column_order = ['order number','ship date','whs code','lot no','sublot no','sku','production facility','grade','spec','age']
+joined_df = joined_df[column_order]
+
 
 joined_df.to_csv('joined_df.csv', index=False)
