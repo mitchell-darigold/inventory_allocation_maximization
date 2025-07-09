@@ -7,8 +7,6 @@ import tkinter
 from tkinter import filedialog
 import numpy as np
 import math
-
-
 #Ask user for date to use with the loading.  It needs to be the date the data was pulled on
 
 while True:
@@ -38,17 +36,20 @@ print('Successfully connected to the database')
 ###############################################################Variable list############################################################
 
 #Paths
+iam_item_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\item_master.csv'
+
 #iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\inventory20250605.csv'
 #iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\inventory.csv'
 #iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\model\\inventory20250512.csv'
-iam_item_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\item_master.csv'
+
+
 #iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\orders20250605.csv'
 #iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\orders.csv'
 #iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\model\\orders20250512.csv'
 
 
-iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\model_order_20250601.csv'
-iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\model_inventory_20250601.csv'
+iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\pbi outputs\\orders20250601.csv'
+iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\pbi outputs\\inventory20250601.csv'
 
 #allow user to choose the location of the three files
 #print('Choose the inventory file please:')
@@ -797,7 +798,7 @@ from (
     from iam_orders mo
 
     left join iam_periods mp
-    on mo.ship_date=mp.date_formatted
+    on mo.ship_date_formatted=mp.date_formatted
 
     left join (
         --the stuff in this statement creates the group.
@@ -1019,8 +1020,12 @@ iam_item_df['Grade'] = iam_item_df['Grade'].fillna('102')
 iam_item_df['Spec'] = iam_item_df['Spec'].fillna('9999A')
 #load orders
 iam_orders_df = pd.read_csv(iam_orders_path)
+
+
 #add an additional column formatting the date correctly
 iam_orders_df['SHIP_DATE_FORMATTED'] = iam_orders_df['Ship Date'].str.split(' ').str[0]
+iam_orders_df['SHIP_DATE_FORMATTED'] = pd.to_datetime(iam_orders_df['SHIP_DATE_FORMATTED'])
+
 #clean up some of the columns
 iam_orders_df['Spec'] = iam_orders_df['Spec'].fillna('9999A')
 iam_orders_df['Grade'] = iam_orders_df['Grade'].fillna('102')
@@ -1129,6 +1134,8 @@ try:
     date_list = [start_date + timedelta(days=i) for i in range(num_rows)]
     number_list = list(range(0, num_rows))
     df = pd.DataFrame({'DATE_FORMATTED': date_list, 'PERIOD_NUMBER': number_list})
+    #this removes the time component
+    #df['DATE_FORMATTED'] = df['DATE_FORMATTED'].dt.date
 
     cursor.execute(create_iam_periods(iam_periods_table))
     df.to_sql(f'{iam_periods_table}', sqlite3_connection, if_exists='append', index=False)
@@ -1196,8 +1203,10 @@ production_constraints_table_df = pd.read_sql_query(coupa_production_constraints
 customer_sourcing_table_df = pd.read_sql_query(coupa_customer_sourcing, sqlite3_connection)
 
 #################################Create a single excel file with each relevant sheet##################################
+#at some point the order dataset got so big it made for a huge customer sourcing policies sheet that couldnt get stitched together with the other sheets so I broke it out into its own sheet
+##when the api integration happens hopefully the json will be of an appropriate size to handle this.
 
-with pd.ExcelWriter('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Master\\model.xlsx') as writer:
+with pd.ExcelWriter('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Model Inputs\\model.xlsx') as writer:
     products_table_df.to_excel(writer, sheet_name='Products', index=False)
     boms_table_df.to_excel(writer, sheet_name='BOM', index=False)
     bom_assignment_table_df.to_excel(writer, sheet_name='BomAssignments', index=False)
@@ -1211,7 +1220,22 @@ with pd.ExcelWriter('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximizat
     customer_table_df.to_excel(writer, sheet_name='Customers', index=False)
     periods_table_df.to_excel(writer, sheet_name='Periods', index=False)
     production_constraints_table_df.to_excel(writer, sheet_name='AG_ProductionConstraints', index=False)
-    customer_sourcing_table_df.to_excel(writer, sheet_name='CS_Policies', index=False)
+    #customer_sourcing_table_df.to_excel(writer, sheet_name='CS_Policies', index=False)
+
+#production_constraints_table_df.to_csv('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Model Inputs\\production_constraints.csv',index=False)
+customer_sourcing_table_df.to_csv('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Model Inputs\\customer_sourcing.csv',index=False)
+
+#############i dont know if I want to leave this in for the future, but to do the demand fulfillment comparison for aaron I need t output the results of the tables after a run.  Currently any new run of the model overwrites the tables.  I need the sanpshots for the comparison
+#SQL query
+inventory_gathering = '''select * from iam_inventory'''
+period_gathering = '''select * from iam_periods'''
+
+##Dataframe creation
+inv_df = pd.read_sql_query(inventory_gathering, sqlite3_connection)
+periods_df = pd.read_sql_query(period_gathering, sqlite3_connection)
+
+inv_df.to_csv('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\table snapshots\\inventory' + start_date + '.csv', index=False)
+periods_df.to_csv('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\table snapshots\\periods' + start_date + '.csv', index=False)
 
 ###############################################Close the sqlite connection##############################################
 sqlite3_connection.close()
