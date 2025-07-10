@@ -19,7 +19,7 @@ while True:
 print("You entered:", date_object)
 
 start_date = parse(date_string)
-
+date_string_cleaned = date_string.replace('-','')
 #these two lines are just so I dont have to enter a date everytime I run a test.  They should be commented out once the project is complete
 #date_string = '2025-05-07'
 #start_date = parse(date_string)
@@ -48,8 +48,8 @@ iam_item_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\
 #iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\model\\orders20250512.csv'
 
 
-iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\pbi outputs\\orders20250601.csv'
-iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\pbi outputs\\inventory20250601.csv'
+iam_orders_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\pbi outputs\\orders20250602.csv'
+iam_inventory_path = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\pbi outputs\\inventory20250602.csv'
 
 #allow user to choose the location of the three files
 #print('Choose the inventory file please:')
@@ -1234,8 +1234,8 @@ period_gathering = '''select * from iam_periods'''
 inv_df = pd.read_sql_query(inventory_gathering, sqlite3_connection)
 periods_df = pd.read_sql_query(period_gathering, sqlite3_connection)
 
-inv_df.to_csv('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\table snapshots\\inventory' + start_date + '.csv', index=False)
-periods_df.to_csv('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\table snapshots\\periods' + start_date + '.csv', index=False)
+inv_df.to_csv('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\table snapshots\\inventory' + date_string_cleaned + '.csv', index=False)
+periods_df.to_csv('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\table snapshots\\periods' + date_string_cleaned + '.csv', index=False)
 
 ###############################################Close the sqlite connection##############################################
 sqlite3_connection.close()

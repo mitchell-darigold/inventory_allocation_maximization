@@ -7,6 +7,7 @@ import tkinter
 from tkinter import filedialog
 import numpy as np
 import math
+import time
 
 #Ask user for date to use with the loading.  It needs to be the date the data was pulled on
 
@@ -51,7 +52,7 @@ inv_model = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Com
 
 periods = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\model\\table snapshots\\periods' + date_string_minus_1_cleaned + '.csv'
 
-cust_flow = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\Product Allocation Maximization - Customer Flows' + date_string_minus_1_cleaned + '.xlsx'
+cust_flow = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\pbi outputs\\Product Allocation Maximization - Customer Flows' + date_string_minus_1_cleaned + '.xlsx'
 
 inv_dw_df = pd.read_csv(inv_dw)
 
@@ -68,10 +69,9 @@ periods_df = pd.read_csv(periods)
 #pull out the inventory that doesnt have any allocation
 inv_no_allocation = inv_dw_df[inv_dw_df['ALLOCATED_ORDER_NUM'].isna()]
 #this compares the inventory allocated order number against the orders, if there are allocated order numbers in inventory but not in orders we remove them.  This is the logic to find transfer orders according to aaron
+#find the inventry that has an allocated order number and then remove those that dont match to an  order in the orders data set
+inv_no_transfers = inv_dw_df[inv_dw_df['ALLOCATED_ORDER_NUM'].notnull()]
 inv_no_transfers = inv_dw_df[inv_dw_df['ALLOCATED_ORDER_NUM'].isin(ord_df['Order#'])]
-
-#this pulls out the inventory from the model's allocations
-
 
 #mush the two dfs together to get the complete set of inventory we want to use in the model run
 #there will need to be a step where we remove the inventory that gets allocated by the model, but this is for day 1 where we havent run the model yet.
@@ -111,18 +111,14 @@ inv_model_df['join_col'] = inv_model_df[inv_cols].astype(str).agg(''.join, axis=
 #if there are 15 units going into filling an order, I want 15 rows duplicated
 cf_df = cf_df.loc[cf_df.index.repeat(cf_df['Flow Units'])].reset_index(drop=True)
 
+#seperate the customer flows into only period 1 since thats the only one we will be taking out of the datawarehouse inventory
+cf_df = cf_df[cf_df['Departing Period Name'] == 1]
+
+
 #drop columns and rows that arent relevant
 cf_df = cf_df[cf_df['Customer Name'] != 'Trash']
 cf_df = cf_df.drop(['Departing Period Name','Arriving Period Name', 'Product Name', 'Temperature Class', 'Hazardous Goods', 'Organization Name', 'Mode', 'Total Demand', 'Total Demand Served', 'Shipment Size', 'Shipment Size Basis', 'Flow Units', 'Flow Weight', 'Flow Cubic', 'Service Hours', 'Service Distance', 'Flow Revenue', 'Outbound Warehousing Policy Cost', 'Transportation Policy Cost', 'Sourcing Policy Cost', 'Duty Cost', 'In Transit Inventory', 'Intransit Inventory Holding Cost', 'CO2', 'CO2 Cost', 'Total Cost', 'Lead Time Cost', 'Sourcing Process Cost', 'Transportation Process Cost', 'Outbound Inventory Process Cost', 'Total Outbound Warehousing Cost', 'Total Sourcing Cost', 'Total Transportation Cost', 'Departing Period Number', 'Arriving Period Number', 'Scenario ID', 'Sub-Scenario ID', 'PERIOD_NUMBER', 'DATE_FORMATTED', 'age'], axis=1)
-inv_model_df = inv_model_df.drop(['AGE', 'TOTAL_WEIGHTS', 'TOTAL_PALLETS', 'ITEM_NUMBER', 'GRADE', 'PRODUCTION_PLANT', 'SPEC', 'WHS_CODE', 'JOINER', 'CLEANED_SPEC', 'SPEC_VALUE',], axis=1)
-
-
-#remove this after testing
-#df.to_csv('customer_flows.csv')
-#inv_df.to_csv('inventory.csv')
-
-#seperate the customer flows into only period 1 since thats the only one we will be taking out of the datawarehouse inventory
-cf_df = cf_df[cf_df['Departing Period Name'] == '1']
+inv_model_df = inv_model_df.drop(['AGE', 'TOTAL_WEIGHTS', 'TOTAL_PALLETS', 'ITEM_NUMBER', 'GRADE', 'PRODUCTION_PLANT', 'SPEC', 'WHS_CODE', 'JOINER', 'CLEANED_SPEC', 'SPEC_VALUE'], axis=1)
 
 #seperate the customer flows into a df for the any_whs scenario
 any_df = cf_df[cf_df['Scenario'] == 'any_whs']
@@ -163,9 +159,9 @@ print(f"Joined inventory and customer flows in {toc - tic:0.4f} seconds")
 
 #a little cleaning of the joined df
 allocated_lots_df['Order Number'] = allocated_lots_df['Customer Name'].str.split('_').str[1]
-allocated_lots_df = allocated_lots_df.drop(['join_col','Customer Name'])
+allocated_lots_df = allocated_lots_df.drop(['join_col','Customer Name'], axis=1)
 allocated_lots_df = allocated_lots_df.rename(columns={'Source Name': 'whs code', 'SHIP_DATE':'ship date', 'item_number':'sku', 'start_age':'age', 'LOT_NO':'lot no','SUBLOT_NO':'sublot no','production_facility':'production facility'})
-column_order = ['order number','ship date','whs code','lot no','sublot no','sku','production facility','grade','spec','age']
+column_order = ['Order Number','ship date','whs code','lot no','sublot no','sku','production facility','grade','spec','age']
 allocated_lots_df = allocated_lots_df[column_order]
 
 #output files
@@ -173,8 +169,27 @@ allocated_lots_df = allocated_lots_df[column_order]
 #this file is from the model run of the previous day and needs to be taken from the datawarehouse for the date_string_cleaned date
 allocated_lots_df.to_csv('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\part 2\\model\\allocated lot and sublot files\\allocated_lots_df' + date_string_cleaned + '.csv', index=False)
 
+allocated_lots_d2 = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\part 2\\model\\allocated lot and sublot files\\allocated_lots_df20250602.csv'
+allocated_lots_d3 = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\part 2\\model\\allocated lot and sublot files\\allocated_lots_df20250603.csv'
+allocated_lots_d4 = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\part 2\\model\\allocated lot and sublot files\\allocated_lots_df20250604.csv'
+allocated_lots_d5 = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\part 2\\model\\allocated lot and sublot files\\allocated_lots_df20250605.csv'
+allocated_lots_d6 = 'S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\part 2\\model\\allocated lot and sublot files\\allocated_lots_df20250606.csv'
 
-inv_df = inv_df[inv_df['SUBLOT_NO'].isin(allocated_lots_df['SUBLOT_NO'])]
+#allocated_lots_d2_df = pd.read_csv(allocated_lots_d2)
+#allocated_lots_d3_df = pd.read_csv(allocated_lots_d3)
+#allocated_lots_d4_df = pd.read_csv(allocated_lots_d4)
+#allocated_lots_d5_df = pd.read_csv(allocated_lots_d5)
+#allocated_lots_d6_df = pd.read_csv(allocated_lots_d6)
 
+#remove the rows in the inventory dw df that are in the allocated date from period 1 based on sublot no
+inv_df = inv_df[~inv_df['SUBLOT_NO'].isin(allocated_lots_df['sublot no'])]
 
+#here is the manual part (for now) I need to add or remove these lines depending on the day I am running this
+#inv_df = inv_df[~inv_df['SUBLOT_NO'].isin(allocated_lots__d2_df['sublot no'])]
+#inv_df = inv_df[~inv_df['SUBLOT_NO'].isin(allocated_lots__d3_df['sublot no'])]
+#inv_df = inv_df[~inv_df['SUBLOT_NO'].isin(allocated_lots__d4_df['sublot no'])]
+#inv_df = inv_df[~inv_df['SUBLOT_NO'].isin(allocated_lots__d5_df['sublot no'])]
+#inv_df = inv_df[~inv_df['SUBLOT_NO'].isin(allocated_lots__d6_df['sublot no'])]
 
+#output files
+inv_df.to_csv('S:\\Supply_Chain\\Analytics\\Inventory Allocation Maximization\\Comparison\\part 2\\model\\model inputs\\inventory' + date_string_cleaned + '.csv', index=False)
